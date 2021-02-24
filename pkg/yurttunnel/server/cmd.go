@@ -22,9 +22,6 @@ import (
 
 	"github.com/openyurtio/openyurt/pkg/projectinfo"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/constants"
-	"github.com/openyurtio/openyurt/pkg/yurttunnel/handlerwrapper/initializer"
-	"github.com/openyurtio/openyurt/pkg/yurttunnel/handlerwrapper/wraphandler"
-	"github.com/openyurtio/openyurt/pkg/yurttunnel/iptables"
 	kubeutil "github.com/openyurtio/openyurt/pkg/yurttunnel/kubernetes"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/pki"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/pki/certmanager"
@@ -80,12 +77,6 @@ func NewYurttunnelServerCommand(stopCh <-chan struct{}) *cobra.Command {
 		"DNS names that will be added into server's certificate. (e.g., dns1,dns2)")
 	flags.StringVar(&o.certIPs, "cert-ips", o.certIPs,
 		"IPs that will be added into server's certificate. (e.g., ip1,ip2)")
-	flags.BoolVar(&o.enableIptables, "enable-iptables", o.enableIptables,
-		"If allow iptable manager to set the dnat rule.")
-	flags.BoolVar(&o.egressSelectorEnabled, "egress-selector-enable", o.egressSelectorEnabled,
-		"If the apiserver egress selector has been enabled.")
-	flags.IntVar(&o.iptablesSyncPeriod, "iptables-sync-period", o.iptablesSyncPeriod,
-		"The synchronization period of the iptable manager.")
 	flags.IntVar(&o.serverCount, "server-count", o.serverCount,
 		"The number of proxy server instances, should be 1 unless it is an HA server.")
 	flags.StringVar(&o.proxyStrategy, "proxy-strategy", o.proxyStrategy,
@@ -103,17 +94,12 @@ type YurttunnelServerOptions struct {
 	certDNSNames             string
 	certIPs                  string
 	version                  bool
-	enableIptables           bool
-	egressSelectorEnabled    bool
-	iptablesSyncPeriod       int
 	serverAgentPort          int
 	serverMasterPort         int
 	serverMasterInsecurePort int
 	serverCount              int
-	interceptorServerUDSFile string
 	serverAgentAddr          string
 	serverMasterAddr         string
-	serverMasterInsecureAddr string
 	clientset                kubernetes.Interface
 	sharedInformerFactory    informers.SharedInformerFactory
 	proxyStrategy            string
@@ -122,16 +108,12 @@ type YurttunnelServerOptions struct {
 // NewYurttunnelServerOptions creates a new YurtNewYurttunnelServerOptions
 func NewYurttunnelServerOptions() *YurttunnelServerOptions {
 	o := &YurttunnelServerOptions{
-		bindAddr:                 "0.0.0.0",
-		insecureBindAddr:         "127.0.0.1",
-		enableIptables:           true,
-		iptablesSyncPeriod:       60,
-		serverCount:              1,
-		serverAgentPort:          constants.YurttunnelServerAgentPort,
-		serverMasterPort:         constants.YurttunnelServerMasterPort,
-		serverMasterInsecurePort: constants.YurttunnelServerMasterInsecurePort,
-		interceptorServerUDSFile: "/tmp/interceptor-proxier.sock",
-		proxyStrategy:            string(server.ProxyStrategyDestHost),
+		bindAddr:         "0.0.0.0",
+		insecureBindAddr: "127.0.0.1",
+		serverCount:      1,
+		serverAgentPort:  constants.YurttunnelServerAgentPort,
+		serverMasterPort: constants.YurttunnelServerMasterPort,
+		proxyStrategy:    string(server.ProxyStrategyDestHost),
 	}
 	return o
 }
@@ -149,12 +131,9 @@ func (o *YurttunnelServerOptions) validate() error {
 func (o *YurttunnelServerOptions) complete() error {
 	o.serverAgentAddr = fmt.Sprintf("%s:%d", o.bindAddr, o.serverAgentPort)
 	o.serverMasterAddr = fmt.Sprintf("%s:%d", o.bindAddr, o.serverMasterPort)
-	o.serverMasterInsecureAddr = fmt.Sprintf("%s:%d", o.insecureBindAddr, o.serverMasterInsecurePort)
 	klog.Infof("server will accept %s requests at: %s, "+
-		"server will accept master https requests at: %s"+
-		"server will accept master http request at: %s",
-		projectinfo.GetAgentName(), o.serverAgentAddr,
-		o.serverMasterAddr, o.serverMasterInsecureAddr)
+		"server will accept master https requests at: %s "+
+		projectinfo.GetAgentName(), o.serverAgentAddr)
 	var err error
 	// function 'kubeutil.CreateClientSet' will try to create the clientset
 	// based on the in-cluster config if the kubeconfig is empty. As
@@ -166,25 +145,14 @@ func (o *YurttunnelServerOptions) complete() error {
 	}
 	o.sharedInformerFactory =
 		informers.NewSharedInformerFactory(o.clientset, 10*time.Second)
+
 	return nil
 }
 
 // run starts the yurttunel-server
 func (o *YurttunnelServerOptions) run(stopCh <-chan struct{}) error {
-	// 1. start the IP table manager
-	if o.enableIptables {
-		iptablesMgr := iptables.NewIptablesManager(o.clientset,
-			o.sharedInformerFactory.Core().V1().Nodes(),
-			o.bindAddr,
-			o.insecureBindAddr,
-			o.iptablesSyncPeriod)
-		if iptablesMgr == nil {
-			return fmt.Errorf("fail to create a new IptableManager")
-		}
-		go iptablesMgr.Run(stopCh)
-	}
 
-	// 2. create a certificate manager for the tunnel server and run the
+	// 1. create a certificate manager for the tunnel server and run the
 	// csr approver for both yurttunnel-server and yurttunnel-agent
 	serverCertMgr, err :=
 		certmanager.NewYurttunnelServerCertManager(
@@ -196,7 +164,7 @@ func (o *YurttunnelServerOptions) run(stopCh <-chan struct{}) error {
 	go certmanager.NewCSRApprover(o.clientset, o.sharedInformerFactory.Certificates().V1beta1().CertificateSigningRequests()).
 		Run(constants.YurttunnelCSRApproverThreadiness, stopCh)
 
-	// 3. generate the TLS configuration based on the latest certificate
+	// 2. generate the TLS configuration based on the latest certificate
 	rootCertPool, err := pki.GenRootCertPool(o.kubeConfig,
 		constants.YurttunnelCAFile)
 	if err != nil {
@@ -208,17 +176,10 @@ func (o *YurttunnelServerOptions) run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	// 4. create handler wrappers
-	mInitializer := initializer.NewMiddlewareInitializer(o.sharedInformerFactory)
-	wrappers, err := wraphandler.InitHandlerWrappers(mInitializer)
-	if err != nil {
-		return err
-	}
-
-	// after all of informers are configured completed, start the shared index informer
+	// 3. after all of informers are configured completed, start the shared index informer
 	o.sharedInformerFactory.Start(stopCh)
 
-	// 5. waiting for the certificate is generated
+	// 4. waiting for the certificate is generated
 	_ = wait.PollUntil(5*time.Second, func() (bool, error) {
 		// keep polling until the certificate is signed
 		if serverCertMgr.Current() != nil {
@@ -229,16 +190,22 @@ func (o *YurttunnelServerOptions) run(stopCh <-chan struct{}) error {
 		return false, nil
 	}, stopCh)
 
-	// 6. start the server
+	// 5. start reverse proxy
+	tcas := NewReverseProxyServer(
+		o.bindAddr,
+		constants.YurttunnelServerReversePorxyPort,
+		tlsCfg,
+	)
+	if err := tcas.Run(); err != nil {
+		return err
+	}
+
+	// 6. start the tunnel server
 	ts := NewTunnelServer(
-		o.egressSelectorEnabled,
-		o.interceptorServerUDSFile,
 		o.serverMasterAddr,
-		o.serverMasterInsecureAddr,
 		o.serverAgentAddr,
 		o.serverCount,
 		tlsCfg,
-		wrappers,
 		o.proxyStrategy)
 	if err := ts.Run(); err != nil {
 		return err

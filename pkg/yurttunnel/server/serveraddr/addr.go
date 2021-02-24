@@ -131,7 +131,7 @@ func getTunnelServerResources(clientset kubernetes.Interface) (*v1.Service, *v1.
 	// get all of cloud nodes when tunnel server expose by NodePort service
 	if svc.Spec.Type == corev1.ServiceTypeNodePort {
 		labelSelector := fmt.Sprintf("%s=false", projectinfo.GetEdgeWorkerLabelKey())
-		// yurttunnel-server will be deployed on one of the cloud nodes
+		// yurttunnel-server will be deployed on one of the master nodes
 		nodeLst, err = clientset.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: labelSelector})
 		if err != nil {
 			return svc, eps, nodeLst, err

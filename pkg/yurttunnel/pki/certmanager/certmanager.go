@@ -80,23 +80,21 @@ func NewYurttunnelServerCertManager(
 // NewYurttunnelAgentCertManager creates a certificate manager for
 // the yurttunel-agent
 func NewYurttunnelAgentCertManager(
-	clientset kubernetes.Interface) (certificate.Manager, error) {
-	// As yurttunnel-agent will run on the edge node with Host network mode,
-	// we can use the status.podIP as the node IP
-	nodeIP := os.Getenv(constants.YurttunnelAgentPodIPEnv)
-	if nodeIP == "" {
+	clientset kubernetes.Interface,
+	clusterName string) (certificate.Manager, error) {
+	podIP := os.Getenv(constants.YurttunnelAgentPodIPEnv)
+	if podIP == "" {
 		return nil, fmt.Errorf("env %s is not set",
 			constants.YurttunnelAgentPodIPEnv)
 	}
-
 	return newCertManager(
 		clientset,
 		projectinfo.GetAgentName(),
 		fmt.Sprintf(constants.YurttunnelAgentCertDir, projectinfo.GetAgentName()),
-		constants.YurttunnelAgentCSRCN,
+		clusterName,
 		[]string{constants.YurttunnelCSROrg},
-		[]string{os.Getenv("NODE_NAME")},
-		[]net.IP{net.ParseIP(nodeIP)})
+		[]string{clusterName},
+		[]net.IP{net.ParseIP(podIP)})
 }
 
 // NewCertManager creates a certificate manager that will generates a
@@ -107,7 +105,8 @@ func newCertManager(
 	certDir,
 	commonName string,
 	organizations,
-	dnsNames []string, ipAddrs []net.IP) (certificate.Manager, error) {
+	dnsNames []string,
+	ipAddrs []net.IP) (certificate.Manager, error) {
 	certificateStore, err :=
 		certificate.NewFileStore(componentName, certDir, certDir, "", "")
 	if err != nil {

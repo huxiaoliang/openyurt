@@ -17,15 +17,15 @@ limitations under the License.
 package constants
 
 const (
-	YurttunnelServerAgentPort          = 10262
-	YurttunnelServerMasterPort         = 10263
-	YurttunnelServerMasterInsecurePort = 10264
-	YurttunnelServerServiceNs          = "kube-system"
-	YurttunnelServerServiceName        = "x-tunnel-server-svc"
-	YurttunnelServerAgentPortName      = "tcp"
-	YurttunnelServerExternalAddrKey    = "x-tunnel-server-external-addr"
-	YurttunnelEndpointsNs              = "kube-system"
-	YurttunnelEndpointsName            = "x-tunnel-server-svc"
+	YurttunnelServerReversePorxyPort = 10261
+	YurttunnelServerAgentPort        = 10262
+	YurttunnelServerMasterPort       = 10263
+	YurttunnelServerServiceNs        = "kube-system"
+	YurttunnelServerServiceName      = "x-tunnel-server-svc"
+	YurttunnelServerAgentPortName    = "tcp"
+	YurttunnelServerExternalAddrKey  = "x-tunnel-server-external-addr"
+	YurttunnelEndpointsNs            = "kube-system"
+	YurttunnelEndpointsName          = "x-tunnel-server-svc"
 
 	// yurttunnel PKI related constants
 	YurttunnelCSROrg                 = "openyurt:yurttunnel"
@@ -34,19 +34,14 @@ const (
 	YurttunneServerCSRCN             = "kube-apiserver-kubelet-client"
 	YurttunnelCAFile                 = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	YurttunnelTokenFile              = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	YurttunnelAgentCAFile            = "/var/lib/yurttunnel-agent/serviceaccount/ca.crt"
+	YurttunnelAgentTokenFile         = "/var/lib/yurttunnel-agent/serviceaccount/token"
 	YurttunnelServerCertDir          = "/var/lib/%s/pki"
 	YurttunnelAgentCertDir           = "/var/lib/%s/pki"
 	YurttunnelCSRApproverThreadiness = 2
 
 	// name of the environment variables used in pod
 	YurttunnelAgentPodIPEnv = "POD_IP"
-
-	// The timeout seconds of reading a complete request from the apiserver
-	YurttunnelANPInterceptorReadTimeoutSec = 10
-	// The period between two keep-alive probes
-	YurttunnelANPInterceptorKeepAlivePeriodSec = 10
-	// The timeout seconds for the interceptor to proceed a complete read from the proxier
-	YurttunnelANPProxierReadTimeoutSec = 10
 	// probe the client every 10 seconds to ensure the connection is still active
 	YurttunnelANPGrpcKeepAliveTimeSec = 10
 	// wait 5 seconds for the probe ack before cutting the connection

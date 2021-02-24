@@ -71,23 +71,22 @@ metadata:
 spec:
   type: NodePort 
   ports:
-  - port: 10263
-    targetPort: 10263
-    name: https
+  - port: 10261
+    targetPort: 10261
+    name: reverseproxy
+    nodePort: 31501
   - port: 10262
     targetPort: 10262
     name: tcp
+    nodePort: 31502
+  - port: 10263
+    targetPort: 10263
+    nodePort: 31503
+    name: https
   selector:
     k8s-app: yurt-tunnel-server
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: yurt-tunnel-server-cfg
-  namespace: kube-system
-data:
-  dnat-ports-pair: ""
----
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -105,38 +104,19 @@ spec:
       labels:
         k8s-app: yurt-tunnel-server
     spec:
-      hostNetwork: true
       serviceAccountName: yurt-tunnel-server
       restartPolicy: Always
-      volumes:
-      - name: tunnel-server-dir
-        hostPath:
-          path: /var/lib/yurttunnel-server
-          type: DirectoryOrCreate
-      tolerations:
-      - key: "node-role.alibabacloud.com/addon"
-        operator: "Exists"
-        effect: "NoSchedule"
       nodeSelector:
         beta.kubernetes.io/arch: amd64
         beta.kubernetes.io/os: linux
-        openyurt.io/is-edge-worker: "false"
       containers:
       - name: yurt-tunnel-server
-        image: openyurt/yurt-tunnel-server:latest
+        image: huxl/yurt-tunnel-server:latest-amd64
         imagePullPolicy: Always
         command:
         - yurt-tunnel-server
         args:
-        - --bind-address=$(NODE_IP)
-        env:
-        - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        securityContext:
-          capabilities:
-            add: ["NET_ADMIN", "NET_RAW"]
-        volumeMounts:
-        - name: tunnel-server-dir
-          mountPath: /var/lib/yurttunnel-server
+        - --bind-address=0.0.0.0
+        - --cert-ips=132.232.31.102,139.155.48.141,139.155.57.224
+        - --proxy-strategy=destHost
+        - --v=4

@@ -21,18 +21,18 @@ import (
 )
 
 // TunnelAgent sets up tunnel to TunnelServer, receive requests
-// from tunnel, and forwards requests to kubelet
+// from tunnel, and forwards requests to managerd cluster apiserver
 type TunnelAgent interface {
 	Run(<-chan struct{})
 }
 
 // NewTunnelAgent generates a new TunnelAgent
 func NewTunnelAgent(tlsCfg *tls.Config,
-	tunnelServerAddr, nodeName, agentIdentifiers string) TunnelAgent {
+	tunnelServerAddr, clusterName, agentIdentifiers string) TunnelAgent {
 	ata := anpTunnelAgent{
 		tlsCfg:           tlsCfg,
 		tunnelServerAddr: tunnelServerAddr,
-		nodeName:         nodeName,
+		clusterName:      clusterName,
 		agentIdentifiers: agentIdentifiers,
 	}
 

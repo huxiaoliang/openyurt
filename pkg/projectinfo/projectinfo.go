@@ -63,30 +63,9 @@ func GetEdgeWorkerLabelKey() string {
 	return labelPrefix + "/is-edge-worker"
 }
 
-// GetHubName returns name of yurthub agent
-func GetHubName() string {
-	return projectPrefix + "hub"
-}
-
-// GetEdgeEnableTunnelLabelKey returns the tunnel agent label, which is used
-// to identify if tunnel agent is running on the node or not.
-func GetEdgeEnableTunnelLabelKey() string {
-	return labelPrefix + "/edge-enable-reverseTunnel-client"
-}
-
 // GetTunnelName returns name of tunnel
 func GetTunnelName() string {
 	return projectPrefix + "tunnel"
-}
-
-// GetYurtControllerManagerName returns name of openyurt controller-manager
-func GetYurtControllerManagerName() string {
-	return projectPrefix + "controller-manager"
-}
-
-// GetYurtAppManagerName returns name of tunnel
-func GetYurtAppManagerName() string {
-	return projectPrefix + "app-manager"
 }
 
 // normalizeGitCommit reserve 7 characters for gitCommit

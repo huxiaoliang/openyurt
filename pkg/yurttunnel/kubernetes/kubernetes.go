@@ -20,11 +20,15 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
+	"time"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/transport"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 
@@ -75,26 +79,51 @@ func CreateClientSetApiserverAddr(apiserverAddr string) (*kubernetes.Clientset, 
 		return nil, errors.New("apiserver addr can't be empty")
 	}
 
-	token, err := ioutil.ReadFile(constants.YurttunnelTokenFile)
+	token, err := ioutil.ReadFile(constants.YurttunnelAgentTokenFile)
 	if err != nil {
 		return nil, err
 	}
 
 	tlsClientConfig := rest.TLSClientConfig{}
 
-	if _, err := certutil.NewPool(constants.YurttunnelCAFile); err != nil {
+	if _, err := certutil.NewPool(constants.YurttunnelAgentCAFile); err != nil {
 		klog.Errorf("Expected to load root CA config from %s, but got err: %v",
-			constants.YurttunnelCAFile, err)
+			constants.YurttunnelAgentCAFile, err)
 	} else {
-		tlsClientConfig.CAFile = constants.YurttunnelCAFile
+		tlsClientConfig.CAFile = constants.YurttunnelAgentCAFile
 	}
+
+	//tlsConfig, err := util.GetClientTLSConfig(constants.YurttunnelAgentCAFile, "", "", "")
+	//tlsConfig.InsecureSkipVerify = true
 
 	restConfig := rest.Config{
 		Host:            "https://" + apiserverAddr,
 		TLSClientConfig: tlsClientConfig,
 		BearerToken:     string(token),
-		BearerTokenFile: constants.YurttunnelTokenFile,
+		BearerTokenFile: constants.YurttunnelAgentTokenFile,
 	}
 
+	transportConfig, err := restConfig.TransportConfig()
+	if err != nil {
+		return nil, err
+	}
+	restTLSConfig, err := transport.TLSConfigFor(transportConfig)
+	if err != nil {
+		return nil, err
+	}
+	//restTLSConfig.InsecureSkipVerify = true
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        100,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+	transport.TLSClientConfig = restTLSConfig
+	restConfig.Transport = transport
+	restConfig.TLSClientConfig = rest.TLSClientConfig{}
 	return kubernetes.NewForConfig(&restConfig)
 }

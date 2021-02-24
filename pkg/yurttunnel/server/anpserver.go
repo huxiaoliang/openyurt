@@ -18,21 +18,19 @@ package server
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/constants"
-	hw "github.com/openyurtio/openyurt/pkg/yurttunnel/handlerwrapper"
-	wh "github.com/openyurtio/openyurt/pkg/yurttunnel/handlerwrapper/wraphandler"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/apiserver-network-proxy/pkg/server"
 	anpserver "sigs.k8s.io/apiserver-network-proxy/pkg/server"
 	anpagent "sigs.k8s.io/apiserver-network-proxy/proto/agent"
 )
@@ -40,14 +38,11 @@ import (
 // anpTunnelServer implements the TunnelServer interface using the
 // apiserver-network-proxy package
 type anpTunnelServer struct {
-	egressSelectorEnabled    bool
-	interceptorServerUDSFile string
 	serverMasterAddr         string
 	serverMasterInsecureAddr string
 	serverAgentAddr          string
 	serverCount              int
 	tlsCfg                   *tls.Config
-	wrappers                 hw.HandlerWrappers
 	proxyStrategy            string
 }
 
@@ -59,31 +54,12 @@ func (ats *anpTunnelServer) Run() error {
 		[]anpserver.ProxyStrategy{anpserver.ProxyStrategy(ats.proxyStrategy)},
 		ats.serverCount,
 		&anpserver.AgentTokenAuthenticationOptions{})
-	// 1. start the proxier
-	proxierErr := runProxier(
-		&anpserver.Tunnel{Server: proxyServer},
-		ats.egressSelectorEnabled,
-		ats.interceptorServerUDSFile,
-		ats.tlsCfg)
-	if proxierErr != nil {
-		return fmt.Errorf("fail to run the proxier: %s", proxierErr)
-	}
-
-	wrappedHandler, err := wh.WrapHandler(
-		NewRequestInterceptor(ats.interceptorServerUDSFile, ats.tlsCfg),
-		ats.wrappers,
-	)
-	if err != nil {
-		return fmt.Errorf("fail to wrap handler: %v", err)
-	}
 
 	// 2. start the master server
 	masterServerErr := runMasterServer(
-		wrappedHandler,
-		ats.egressSelectorEnabled,
 		ats.serverMasterAddr,
-		ats.serverMasterInsecureAddr,
-		ats.tlsCfg)
+		ats.tlsCfg,
+		proxyServer)
 	if masterServerErr != nil {
 		return fmt.Errorf("fail to run master server: %s", masterServerErr)
 	}
@@ -97,74 +73,25 @@ func (ats *anpTunnelServer) Run() error {
 	return nil
 }
 
-// runProxier starts a proxy server that redirects requests received from
-// apiserver to corresponding yurttunel-agent
-func runProxier(handler http.Handler,
-	egressSelectorEnabled bool,
-	udsSockFile string,
-	tlsConfig *tls.Config) error {
-	klog.Info("start handling request from interceptor")
-	if egressSelectorEnabled {
-		// TODO will support egress selector for apiserver version > 1.18
-		return errors.New("DOESN'T SUPPROT EGRESS SELECTOR YET")
-	}
-	// request will be sent from request interceptor on the same host,
-	// so we use UDS protocol to avoide sending request through kernel
-	// network stack.
-	go func() {
-		server := &http.Server{
-			Handler:     handler,
-			ReadTimeout: constants.YurttunnelANPProxierReadTimeoutSec * time.Second,
-		}
-		unixListener, err := net.Listen("unix", udsSockFile)
-		if err != nil {
-			klog.Errorf("proxier fail to serving request through uds: %s", err)
-		}
-		defer unixListener.Close()
-		if err := server.Serve(unixListener); err != nil {
-			klog.Errorf("proxier fail to serving request through uds: %s", err)
-		}
-	}()
-
-	return nil
-}
-
 // runMasterServer runs an https server to handle requests from apiserver
-func runMasterServer(handler http.Handler,
-	egressSelectorEnabled bool,
-	masterServerAddr,
-	masterServerInsecureAddr string,
-	tlsCfg *tls.Config) error {
-	if egressSelectorEnabled {
-		return errors.New("DOESN'T SUPPORT EGRESS SELECTOR YET")
-	}
+func runMasterServer(
+	masterServerAddr string,
+	tlsCfg *tls.Config,
+	s *server.ProxyServer) error {
 	go func() {
 		klog.Infof("start handling https request from master at %s", masterServerAddr)
-		server := http.Server{
-			Addr:         masterServerAddr,
-			Handler:      handler,
-			ReadTimeout:  constants.YurttunnelANPInterceptorReadTimeoutSec * time.Second,
-			TLSConfig:    tlsCfg,
+		server := &http.Server{
+			Addr:      masterServerAddr,
+			TLSConfig: tlsCfg,
+			Handler: &server.Tunnel{
+				Server: s,
+			},
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
 		if err := server.ListenAndServeTLS("", ""); err != nil {
 			klog.Errorf("failed to serve https request from master: %v", err)
 		}
 	}()
-
-	go func() {
-		klog.Infof("start handling http request from master at %s", masterServerInsecureAddr)
-		server := http.Server{
-			Addr:         masterServerInsecureAddr,
-			ReadTimeout:  constants.YurttunnelANPInterceptorReadTimeoutSec * time.Second,
-			Handler:      handler,
-			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-		}
-		if err := server.ListenAndServe(); err != nil {
-			klog.Errorf("failed to serve http request from master: %v", err)
-		}
-	}()
-
 	return nil
 }
 

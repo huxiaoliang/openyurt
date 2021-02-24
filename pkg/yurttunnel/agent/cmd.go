@@ -19,18 +19,20 @@ package agent
 import (
 	"errors"
 	"fmt"
-	"net"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/certificate"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/apiserver-network-proxy/pkg/agent"
+	"yunion.io/x/pkg/util/wait"
 
 	"github.com/openyurtio/openyurt/pkg/projectinfo"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/constants"
+	"github.com/openyurtio/openyurt/pkg/yurttunnel/hook/interfaces"
+	"github.com/openyurtio/openyurt/pkg/yurttunnel/hook/tkestack"
 	kubeutil "github.com/openyurtio/openyurt/pkg/yurttunnel/kubernetes"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/pki"
 	"github.com/openyurtio/openyurt/pkg/yurttunnel/pki/certmanager"
@@ -68,7 +70,7 @@ func NewYurttunnelAgentCommand(stopCh <-chan struct{}) *cobra.Command {
 	flags := cmd.Flags()
 	flags.BoolVar(&o.version, "version", o.version,
 		"print the version information.")
-	flags.StringVar(&o.nodeName, "node-name", o.nodeName,
+	flags.StringVar(&o.clusterName, "cluster-name", o.clusterName,
 		"The name of the edge node.")
 	flags.StringVar(&o.tunnelServerAddr, "tunnelserver-addr", o.tunnelServerAddr,
 		fmt.Sprintf("The address of %s", projectinfo.GetServerName()))
@@ -78,30 +80,30 @@ func NewYurttunnelAgentCommand(stopCh <-chan struct{}) *cobra.Command {
 		"Path to the kubeconfig file.")
 	flags.StringVar(&o.agentIdentifiers, "agent-identifiers", o.agentIdentifiers,
 		"The identifiers of the agent, which will be used by the server when choosing agent.")
-
 	return cmd
 }
 
 // YurttunnelAgentOptions has the information that required by the
 // yurttunel-agent
 type YurttunnelAgentOptions struct {
-	nodeName         string
+	clusterName      string
 	tunnelServerAddr string
 	apiserverAddr    string
 	kubeConfig       string
 	version          bool
 	clientset        kubernetes.Interface
 	agentIdentifiers string
+	hookProvider     interfaces.TunnelHookProvider
 }
 
 // validate validates the YurttunnelServerOptions
 func (o *YurttunnelAgentOptions) validate() error {
-	if o.nodeName == "" {
-		return errors.New("--node-name is not set")
+	if o.clusterName == "" {
+		return errors.New("--cluster-name is not set")
 	}
 
 	if !agentIdentifiersAreValid(o.agentIdentifiers) {
-		return errors.New("--agent-identifiers are invalid, format should be host={node-name}")
+		return errors.New("--agent-identifiers are invalid, format should be host={cluster-name}")
 	}
 
 	return nil
@@ -112,12 +114,7 @@ func (o *YurttunnelAgentOptions) complete() error {
 	var err error
 
 	if len(o.agentIdentifiers) == 0 {
-		o.agentIdentifiers = fmt.Sprintf("host=%s", o.nodeName)
-
-		podIP := os.Getenv("POD_IP")
-		if len(podIP) != 0 && net.ParseIP(podIP).To4() != nil {
-			o.agentIdentifiers = fmt.Sprintf("%s,ipv4=%s", o.agentIdentifiers, podIP)
-		}
+		o.agentIdentifiers = fmt.Sprintf("host=%s", o.clusterName)
 	}
 	klog.Infof("%s is set for agent identifies", o.agentIdentifiers)
 
@@ -134,6 +131,10 @@ func (o *YurttunnelAgentOptions) complete() error {
 
 	klog.Infof("create the clientset based on the apiserver address(%s).", o.apiserverAddr)
 	o.clientset, err = kubeutil.CreateClientSetApiserverAddr(o.apiserverAddr)
+
+	// hard code here for tkestack
+	klog.Infof("create the hook provider based")
+	o.hookProvider = tkestack.NewTKEStackHookProvider("tkestack", o.agentIdentifiers, o.clientset)
 	return err
 }
 
@@ -145,7 +146,15 @@ func (o *YurttunnelAgentOptions) run(stopCh <-chan struct{}) error {
 		agentCertMgr     certificate.Manager
 	)
 
-	// 1. get the address of the yurttunnel-server
+	// 1. post start tunnel agent
+	if o.hookProvider != nil {
+		err = o.hookProvider.PreStartTunnelAgent()
+		if err != nil {
+			return err
+		}
+	}
+
+	// 2. get the address of the yurttunnel-server
 	tunnelServerAddr = o.tunnelServerAddr
 	if o.tunnelServerAddr == "" {
 		if tunnelServerAddr, err = serveraddr.GetTunnelServerAddr(o.clientset); err != nil {
@@ -154,24 +163,42 @@ func (o *YurttunnelAgentOptions) run(stopCh <-chan struct{}) error {
 	}
 	klog.Infof("%s address: %s", projectinfo.GetServerName(), tunnelServerAddr)
 
-	// 2. create a certificate manager
+	// 3. create a certificate manager
 	agentCertMgr, err =
-		certmanager.NewYurttunnelAgentCertManager(o.clientset)
+		certmanager.NewYurttunnelAgentCertManager(o.clientset, o.clusterName)
 	if err != nil {
 		return err
 	}
 	agentCertMgr.Start()
 
-	// 3. generate a TLS configuration for securing the connection to server
+	// 4. generate a TLS configuration for securing the connection to server
 	tlsCfg, err := pki.GenTLSConfigUseCertMgrAndCA(agentCertMgr,
-		tunnelServerAddr, constants.YurttunnelCAFile)
+		tunnelServerAddr, constants.YurttunnelAgentCAFile)
 	if err != nil {
 		return err
 	}
+	// 5. waiting for the certificate is generated
+	_ = wait.PollUntil(5*time.Second, func() (bool, error) {
+		// keep polling until the certificate is signed
+		if agentCertMgr.Current() != nil {
+			return true, nil
+		}
+		klog.Infof("waiting for the master to sign the %s certificate",
+			projectinfo.GetAgentName())
+		return false, nil
+	}, stopCh)
 
-	// 4. start the yurttunnel-agent
-	ta := NewTunnelAgent(tlsCfg, tunnelServerAddr, o.nodeName, o.agentIdentifiers)
+	// 6. start the yurttunnel-agent
+	ta := NewTunnelAgent(tlsCfg, tunnelServerAddr, o.clusterName, o.agentIdentifiers)
 	ta.Run(stopCh)
+
+	// 7. post start tunnel agent
+	if o.hookProvider != nil {
+		err = o.hookProvider.PostStartTunnelAgent()
+		if err != nil {
+			return err
+		}
+	}
 
 	<-stopCh
 	return nil

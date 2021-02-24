@@ -33,7 +33,7 @@ import (
 type anpTunnelAgent struct {
 	tlsCfg           *tls.Config
 	tunnelServerAddr string
-	nodeName         string
+	clusterName      string
 	agentIdentifiers string
 }
 
@@ -44,7 +44,7 @@ func (ata *anpTunnelAgent) Run(stopChan <-chan struct{}) {
 	dialOption := grpc.WithTransportCredentials(credentials.NewTLS(ata.tlsCfg))
 	cc := &anpagent.ClientSetConfig{
 		Address:                 ata.tunnelServerAddr,
-		AgentID:                 ata.nodeName,
+		AgentID:                 ata.clusterName,
 		AgentIdentifiers:        ata.agentIdentifiers,
 		SyncInterval:            5 * time.Second,
 		ProbeInterval:           5 * time.Second,

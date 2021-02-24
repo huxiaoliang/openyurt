@@ -1,48 +1,12 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  annotations:
-    rbac.authorization.kubernetes.io/autoupdate: "true"
-  name: yurt-tunnel-agent
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - nodes/stats
-  - nodes/metrics
-  - nodes/log
-  - nodes/spec
-  - nodes/proxy
-  verbs:
-  - create
-  - get
-  - list
-  - watch
-  - delete
-  - update
-  - patch
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: yurt-tunnel-agent
-subjects:
-- kind: Group
-  name: system:nodes
-  apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: ClusterRole
-  name: yurt-tunnel-agent
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   labels:
     k8s-app: yurt-tunnel-agent
   name: yurt-tunnel-agent
   namespace: kube-system
 spec:
+  replicas: 1
   selector:
     matchLabels:
       k8s-app: yurt-tunnel-agent
@@ -52,44 +16,54 @@ spec:
         k8s-app: yurt-tunnel-agent
     spec:
       nodeSelector:
+        beta.kubernetes.io/arch: amd64
         beta.kubernetes.io/os: linux
-        openyurt.io/edge-enable-reverseTunnel-client: "true"
+      volumes:
+      - name: serviceaccount
+        configMap:
+          name: yurt-tunnel-agent-sa
       containers:
       - command:
         - yurt-tunnel-agent
         args:
-        - --node-name=$(NODE_NAME)
-        image: openyurt/yurt-tunnel-agent:latest
-        imagePullPolicy: IfNotPresent
+        - --cluster-name=cls-t8gz6mgd.kube-system.svc
+        - --apiserver-addr=1.1.1.1:31501
+        - --tunnelserver-addr=1.1.1.1:31502
+        - --v=4
+        image: huxl/yurt-tunnel-agent:latest-amd64
+        imagePullPolicy: Always
         name: yurt-tunnel-agent
-        volumeMounts:
-        - name: k8s-dir
-          mountPath: /etc/kubernetes
-        - name: kubelet-pki
-          mountPath: /var/lib/kubelet/pki
-        - name: tunnel-agent-dir
-          mountPath: /var/lib/yurttunnel-agent
         env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
         - name: POD_IP
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
-      hostNetwork: true
+        volumeMounts:
+        - mountPath: /var/lib/yurttunnel-agent/serviceaccount
+          name: serviceaccount
       restartPolicy: Always
-      volumes:
-      - name: k8s-dir
-        hostPath:
-          path: /etc/kubernetes
-          type: Directory
-      - name: kubelet-pki
-        hostPath:
-          path: /var/lib/kubelet/pki
-          type: Directory
-      - name: tunnel-agent-dir
-        hostPath:
-          path: /var/lib/yurttunnel-agent
-          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yurt-tunnel-agent-sa
+  namespace: kube-system
+data:
+  token: |-
+    TODO
+  ca.crt: |-
+    -----BEGIN CERTIFICATE-----
+    TODO
+    -----END CERTIFICATE-----
+---
+apiVersion: v1
+kind: Service
+metadata:
+   name: cls-t8gz6mgd
+   namespace: kube-system
+spec:
+  selector:
+    component: kube-apiserver
+  ports:
+  - port: 6443
+    targetPort: 6443

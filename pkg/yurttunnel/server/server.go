@@ -18,11 +18,9 @@ package server
 
 import (
 	"crypto/tls"
-
-	hw "github.com/openyurtio/openyurt/pkg/yurttunnel/handlerwrapper"
 )
 
-// TunnelServermanages tunnels between itself and agents, receives requests
+// TunnelServer manages tunnels between itself and agents, receives requests
 // from apiserver, and forwards requests to corresponding agents
 type TunnelServer interface {
 	Run() error
@@ -30,25 +28,36 @@ type TunnelServer interface {
 
 // NewTunnelServer returns a new TunnelServer
 func NewTunnelServer(
-	egressSelectorEnabled bool,
-	interceptorServerUDSFile,
 	serverMasterAddr,
-	serverMasterInsecureAddr,
 	serverAgentAddr string,
 	serverCount int,
 	tlsCfg *tls.Config,
-	wrappers hw.HandlerWrappers,
 	proxyStrategy string) TunnelServer {
 	ats := anpTunnelServer{
-		egressSelectorEnabled:    egressSelectorEnabled,
-		interceptorServerUDSFile: interceptorServerUDSFile,
-		serverMasterAddr:         serverMasterAddr,
-		serverMasterInsecureAddr: serverMasterInsecureAddr,
-		serverAgentAddr:          serverAgentAddr,
-		serverCount:              serverCount,
-		tlsCfg:                   tlsCfg,
-		wrappers:                 wrappers,
-		proxyStrategy:            proxyStrategy,
+		serverMasterAddr: serverMasterAddr,
+		serverAgentAddr:  serverAgentAddr,
+		serverCount:      serverCount,
+		tlsCfg:           tlsCfg,
+		proxyStrategy:    proxyStrategy,
 	}
 	return &ats
+}
+
+// ReverseProxyServer proxy request from tunnel agent to Kubernetes API Server
+// which tunnel server located at
+type ReverseProxyServer interface {
+	Run() error
+}
+
+// NewReverseProxyServer returns a new ReverseProxyServer
+func NewReverseProxyServer(address string, port int, tlsCfg *tls.Config) ReverseProxyServer {
+	tlsClone := tlsCfg.Clone()
+	// ProxyServer https only provide data encryption, auth will passthrough by real bankend
+	tlsClone.ClientAuth = tls.RequestClientCert
+	aps := reverseProxyServer{
+		address: address,
+		port:    port,
+		tlsCfg:  tlsClone,
+	}
+	return &aps
 }
