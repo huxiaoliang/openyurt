@@ -34,9 +34,13 @@ make release
 ## Deploy  topology  1: N
 
 1. Deploy tunnel server on global/meta cluster
+
+
 ```
+kubectl label nodes <node-name> openyurt.io/is-edge-worker=false
 kubectl  create -f config/setup/yurt-tunnel-server.yaml
 ```
+
 1. Deploy tunnel agent on managed cluster
 
 ```

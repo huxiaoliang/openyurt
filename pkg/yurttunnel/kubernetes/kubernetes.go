@@ -91,6 +91,7 @@ func CreateClientSetApiserverAddr(apiserverAddr string) (*kubernetes.Clientset, 
 			constants.YurttunnelAgentCAFile, err)
 	} else {
 		tlsClientConfig.CAFile = constants.YurttunnelAgentCAFile
+
 	}
 
 	//tlsConfig, err := util.GetClientTLSConfig(constants.YurttunnelAgentCAFile, "", "", "")

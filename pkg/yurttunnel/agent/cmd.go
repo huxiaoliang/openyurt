@@ -71,7 +71,7 @@ func NewYurttunnelAgentCommand(stopCh <-chan struct{}) *cobra.Command {
 	flags.BoolVar(&o.version, "version", o.version,
 		"print the version information.")
 	flags.StringVar(&o.clusterName, "cluster-name", o.clusterName,
-		"The name of the edge node.")
+		"The name of the cluster.")
 	flags.StringVar(&o.tunnelServerAddr, "tunnelserver-addr", o.tunnelServerAddr,
 		fmt.Sprintf("The address of %s", projectinfo.GetServerName()))
 	flags.StringVar(&o.apiserverAddr, "apiserver-addr", o.tunnelServerAddr,

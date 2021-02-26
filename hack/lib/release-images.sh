@@ -26,7 +26,7 @@ TAG="latest"
 readonly -a YURT_BIN_TARGETS=(
     yurt-tunnel-server
     yurt-tunnel-agent
-    yurt-tunnel-client
+   #yurt-tunnel-client
 )
 
 readonly -a SUPPORTED_ARCH=(

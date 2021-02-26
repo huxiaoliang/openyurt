@@ -26,10 +26,18 @@ import (
 	"os"
 	"time"
 
+	"github.com/gorilla/mux"
 	"k8s.io/klog/v2"
 )
 
+var (
+	apiServerAddress string = "https://" +
+		net.JoinHostPort(os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
+	normServerAddress string = "https://norm"
+)
+
 type reverseProxyServer struct {
+	mux     *mux.Router
 	address string
 	port    int
 	tlsCfg  *tls.Config
@@ -65,15 +73,25 @@ func (o *reverseProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	reverseProxy.ServeHTTP(w, r)
 }
 
+func (r *reverseProxyServer) registerHandler() {
+
+	// for healthz check request
+	r.mux.HandleFunc("/v1/healthz", r.healthz).Methods("GET")
+
+	// for norm api request
+	r.mux.PathPrefix("/v1/norm").Handler(&reverseProxyHandler{reverseProxy: normServerAddress})
+
+	// for apiserver request
+	r.mux.PathPrefix("/").Handler(&reverseProxyHandler{reverseProxy: apiServerAddress})
+}
+
 func (o *reverseProxyServer) Run() error {
-	// get apiserver address from env
-	reverseProxy := "https://" +
-		net.JoinHostPort(os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
-	hander := &reverseProxyHandler{reverseProxy: reverseProxy}
+	o.registerHandler()
+
 	go func() {
 		server := http.Server{
 			Addr:         fmt.Sprintf("%s:%d", o.address, o.port),
-			Handler:      hander,
+			Handler:      o.mux,
 			TLSConfig:    o.tlsCfg,
 			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		}
@@ -83,4 +101,9 @@ func (o *reverseProxyServer) Run() error {
 	}()
 	klog.Infof("start handling apiserver proxy request from master at %s:%d", o.address, o.port)
 	return nil
+}
+
+func (o *reverseProxyServer) healthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK")
 }

@@ -88,21 +88,20 @@ func NewYurttunnelServerCommand(stopCh <-chan struct{}) *cobra.Command {
 // YurttunnelServerOptions has the information that required by the
 // yurttunel-server
 type YurttunnelServerOptions struct {
-	kubeConfig               string
-	bindAddr                 string
-	insecureBindAddr         string
-	certDNSNames             string
-	certIPs                  string
-	version                  bool
-	serverAgentPort          int
-	serverMasterPort         int
-	serverMasterInsecurePort int
-	serverCount              int
-	serverAgentAddr          string
-	serverMasterAddr         string
-	clientset                kubernetes.Interface
-	sharedInformerFactory    informers.SharedInformerFactory
-	proxyStrategy            string
+	kubeConfig            string
+	bindAddr              string
+	insecureBindAddr      string
+	certDNSNames          string
+	certIPs               string
+	version               bool
+	serverAgentPort       int
+	serverMasterPort      int
+	serverCount           int
+	serverAgentAddr       string
+	serverMasterAddr      string
+	clientset             kubernetes.Interface
+	sharedInformerFactory informers.SharedInformerFactory
+	proxyStrategy         string
 }
 
 // NewYurttunnelServerOptions creates a new YurtNewYurttunnelServerOptions
@@ -133,7 +132,7 @@ func (o *YurttunnelServerOptions) complete() error {
 	o.serverMasterAddr = fmt.Sprintf("%s:%d", o.bindAddr, o.serverMasterPort)
 	klog.Infof("server will accept %s requests at: %s, "+
 		"server will accept master https requests at: %s "+
-		projectinfo.GetAgentName(), o.serverAgentAddr)
+		projectinfo.GetAgentName(), o.serverAgentAddr, o.serverMasterAddr)
 	var err error
 	// function 'kubeutil.CreateClientSet' will try to create the clientset
 	// based on the in-cluster config if the kubeconfig is empty. As

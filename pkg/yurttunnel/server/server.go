@@ -18,6 +18,8 @@ package server
 
 import (
 	"crypto/tls"
+
+	"github.com/gorilla/mux"
 )
 
 // TunnelServer manages tunnels between itself and agents, receives requests
@@ -55,6 +57,7 @@ func NewReverseProxyServer(address string, port int, tlsCfg *tls.Config) Reverse
 	// ProxyServer https only provide data encryption, auth will passthrough by real bankend
 	tlsClone.ClientAuth = tls.RequestClientCert
 	aps := reverseProxyServer{
+		mux:     mux.NewRouter(),
 		address: address,
 		port:    port,
 		tlsCfg:  tlsClone,
