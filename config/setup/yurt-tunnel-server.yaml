@@ -111,7 +111,7 @@ spec:
         beta.kubernetes.io/os: linux
       containers:
       - name: yurt-tunnel-server
-        image: huxl/yurt-tunnel-server:latest-amd64
+        image: huxl/yurt-tunnel-server:v0.3.0-amd64
         imagePullPolicy: Always
         command:
         - yurt-tunnel-server

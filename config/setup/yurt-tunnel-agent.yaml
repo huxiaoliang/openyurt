@@ -30,7 +30,7 @@ spec:
         - --apiserver-addr=132.232.31.102:31501
         - --tunnelserver-addr=132.232.31.102:31502
         - --v=4
-        image: huxl/yurt-tunnel-agent:latest-amd64
+        image: huxl/yurt-tunnel-agent:v0.3.0-amd64
         imagePullPolicy: Always
         name: yurt-tunnel-agent
         env:

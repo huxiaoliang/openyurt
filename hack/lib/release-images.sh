@@ -20,8 +20,6 @@ YURT_IMAGE_DIR=${YURT_OUTPUT_DIR}/images
 YURTCTL_SERVANT_DIR=${YURT_ROOT}/config/yurtctl-servant
 DOCKER_BUILD_BASE_IDR=$YURT_ROOT/dockerbuild
 YURT_BUILD_IMAGE="golang:1.13-alpine"
-REPO="huxl"
-TAG="latest"
 
 readonly -a YURT_BIN_TARGETS=(
     yurt-tunnel-server
