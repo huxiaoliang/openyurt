@@ -24,11 +24,13 @@ This repo aim to leverage Open Source project [ANP](https://github.com/kubernete
 
 ## Build & Push image
 
-1. Update image repo https://github.com/huxiaoliang/openyurt/blob/master/hack/lib/release-images.sh#L23-L24 for your own
-
+1. Update image repo for your own
+```
+export REPO=huxl
+```
 2. Build and push docker image to docker hub
 ```
-make release
+export REGION=cn && make release
 ```
 
 ## Deploy  topology  1: N
