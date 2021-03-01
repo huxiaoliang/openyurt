@@ -47,9 +47,9 @@ kubectl  create -f config/setup/yurt-tunnel-agent.yaml
 
 ## Tunnel test
 
-The `Managed cluster` doesn't have `inbound` network,  so `Hub cluster` can't access to `Managed cluster` directly for communication, but it has `outbound` network which can access to tunnel sever to setup a reverse tunnel , then `Managed cluster` is able to communicate to `Hub cluster` by  this tunnel.  The test client will leverage [ANP client](https://github.com/kubernetes-sigs/apiserver-network-proxy/tree/master/cmd/client) to verify tunnel works as excepted. To simplified the verification test case ,  the tunnel server and tunnel client are deployed to same pod and use same crt/key pairs to enable mTLS based communication
+The `Managed cluster` doesn't have `inbound` network, so `Hub cluster` can't access to `Managed cluster` directly for communication, but it has `outbound` network which can access to tunnel sever to setup a reverse tunnel, then `Managed cluster` is able to communicate to `Hub cluster` by this tunnel. The test client will leverage [ANP client](https://github.com/kubernetes-sigs/apiserver-network-proxy/tree/master/cmd/client) to verify tunnel works as excepted. To simplified the verification test case, the tunnel server and tunnel client are deployed to same pod and use same crt/key pairs to enable mTLS based communication
 
-`Hub cluster`:  
+`Hub cluster`:
 
 ```
 root@VM-0-80-ubuntu:~# kubectl get node
@@ -67,7 +67,7 @@ NAME          STATUS   ROLES    AGE    VERSION
 root@VM-0-77-ubuntu:~# 
 ```
 
-### case 1:  HTTP-Connect client using mTLS Proxy with dial back Agent to Python based SimpleHTTPServer
+### case 1: HTTP-Connect client using mTLS Proxy with dial back Agent to Python based SimpleHTTPServer
 
 ```
 client =HTTP-CONNECT=> (:10263) proxy (:10262) <=GRPC= agent =HTTP=> SimpleHTTPServer(:8000)
@@ -76,7 +76,7 @@ client =HTTP-CONNECT=> (:10263) proxy (:10262) <=GRPC= agent =HTTP=> SimpleHTTPS
   +----------------------------------------------------+
 ```
 
-1.  Check the tunnel server and tunnel agent both in `Running` and ready to use
+1. Check the tunnel server and tunnel agent both in `Running` and ready to use
 
 ```
 root@VM-0-80-ubuntu:~# kubectl get po -A |grep tunn
@@ -86,14 +86,14 @@ kube-system   yurt-tunnel-agent-7597c6dd89-ncg52         1/1     Running   0    
 root@VM-0-77-ubuntu:~# 
 ```
 
-2.  Run python based HTTP server on managed cluster  
+2. Run python based HTTP server on managed cluster
 
 ```
 root@VM-0-77-ubuntu:~# python -m SimpleHTTPServer
 Serving HTTP on 0.0.0.0 port 8000 ...
 ```
 
-3.   Update `-cluster-name`to the SimpleHTTPServer ip address which identified the managed cluster name and re-deploy tunnel agent
+3. Update `-cluster-name`to the SimpleHTTPServer ip address which identified the managed cluster name and re-deploy tunnel agent
 
 ```
 root@VM-0-77-ubuntu:~/mcm/yurt# git diff -u yurt-tunnel-agent.yaml yurt-tunnel-agent.yaml.bak
@@ -113,13 +113,13 @@ index bbd359e..c853755 100644
 root@VM-0-77-ubuntu:~/mcm/yurt# 
 ```
 
-4.  Copy client binary to tunnel server 
+4. Copy client binary to tunnel server 
 
 ```
 kubectl cp yurt-tunnel-client `kubectl get po -l k8s-app=yurt-tunnel-server -n kube-system -o jsonpath="{.items[0].metadata.name}"`:/ -n kube-system
 ```
 
-5.  Run client to get SimpleHTTPServer response by tunnel
+5. Run client to get SimpleHTTPServer response by tunnel
 
 ```
 root@VM-0-80-ubuntu:~# kubectl exec -it `kubectl get po  -l k8s-app=yurt-tunnel-server -n kube-system -o jsonpath="{.items[0].metadata.name}"` -n kube-system sh
@@ -177,10 +177,10 @@ I0228 23:40:17.195460     122 client.go:317] HTML Response:
 </body>
 </html>
 
-/ # 
+/ #
 ```
 
-### case 2:  HTTP-Connect client-go using mTLS Proxy with dial back Agent to K8S API server
+### case 2: HTTP-Connect client-go using mTLS Proxy with dial back Agent to K8S API server
 
 ```
 client =HTTP-CONNECT=> (:10263) proxy (:10262) <=GRPC= agent =HTTP=> K8S API server(:6443)
@@ -236,7 +236,7 @@ root@VM-0-80-ubuntu:~/mcm/yurt#
 
 ```
 
-3.  Run client to get all pods from managed cluster by tunnel
+3. Run client to get all pods from managed cluster by tunnel
 
 ```
 root@VM-0-80-ubuntu:~/mcm/yurt# kubectl exec -it `kubectl get po  -l k8s-app=yurt-tunnel-server -n kube-system -o jsonpath="{.items[0].metadata.name}"` -n kube-system sh           
@@ -301,7 +301,7 @@ Pod 41: tke-registry-controller-7bfb4799d8-ttt2n
 / # 
 ```
 
-### case 3:  GRPC+UDS Client using Proxy with dial back Agent to K8S API server
+### case 3: GRPC+UDS Client using Proxy with dial back Agent to K8S API server
 ```
 client =HTTP over GRPC+UDS=> (/tmp/uds-proxy) proxy (:10262) <=GRPC= agent =HTTP=> K8S API server(:6443)
   |                                                    ^
@@ -311,10 +311,10 @@ client =HTTP over GRPC+UDS=> (/tmp/uds-proxy) proxy (:10262) <=GRPC= agent =HTTP
 
 **TODO**
 
-##  Hook
+## Hook
 
 Currently, only support `PreStartTunnelAgent` and `PostStartTunnelAgent` hook to execute customized logic for different  cloud provider, for example:
 
-1. Tunnel agent responsible for report the managed cluster  `admin` token to Tunnel server and persist it to global/meta cluster so that `tke-platform` use it to create k8s `ClientSet` to operator managed cluster,  `tke` and `tkestack` provider will implements different logic according to the case 
+1. Tunnel agent responsible for report the managed cluster `admin` token to Tunnel server and persist it to global/meta cluster so that `tke-platform` use it to create k8s `ClientSet` to operator managed cluster, `tke` and `tkestack` provider will implements different logic according to the case 
 
 ## HA

@@ -33,7 +33,7 @@ import (
 var (
 	apiServerAddress string = "https://" +
 		net.JoinHostPort(os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT"))
-	normServerAddress string = "https://norm"
+	normServerAddress string = "http://169.254.0.40:80/norm/api"
 )
 
 type reverseProxyServer struct {
@@ -79,9 +79,9 @@ func (r *reverseProxyServer) registerHandler() {
 	r.mux.HandleFunc("/v1/healthz", r.healthz).Methods("GET")
 
 	// for norm api request
-	r.mux.PathPrefix("/v1/norm").Handler(&reverseProxyHandler{reverseProxy: normServerAddress})
+	r.mux.PathPrefix("/norm/api").Handler(&reverseProxyHandler{reverseProxy: normServerAddress})
 
-	// for apiserver request
+	// for apiserver request at last
 	r.mux.PathPrefix("/").Handler(&reverseProxyHandler{reverseProxy: apiServerAddress})
 }
 
