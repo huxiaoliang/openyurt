@@ -24,7 +24,7 @@ YURT_BUILD_IMAGE="golang:1.13-alpine"
 readonly -a YURT_BIN_TARGETS=(
     yurt-tunnel-server
     yurt-tunnel-agent
-   #yurt-tunnel-client
+    yurt-tunnel-client
 )
 
 readonly -a SUPPORTED_ARCH=(
