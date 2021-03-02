@@ -309,7 +309,88 @@ client =HTTP over GRPC+UDS=> (/tmp/uds-proxy) proxy (:10262) <=GRPC= agent =HTTP
   +----------------------------------------------------+
 ```
 
-**TODO**
+1.  Base on case 2,  add `--uds-name=/tmp/uds-proxy` to yurt-tunnel-server.yaml and re-deploy tunnel agent
+
+```
+root@VM-0-80-ubuntu:~/mcm/yurt# git diff -u yurt-tunnel-server.yaml.bak yurt-tunnel-server.yaml
+diff --git a/yurt-tunnel-server.yaml.bak b/yurt-tunnel-server.yaml
+index 4e6bfbc..c28566f 100644
+--- a/yurt-tunnel-server.yaml.bak
++++ b/yurt-tunnel-server.yaml
+@@ -119,4 +119,5 @@ spec:
+         - --bind-address=0.0.0.0
+         - --cert-ips=132.232.31.102,139.155.48.141,139.155.57.224
+         - --proxy-strategy=destHost
++        - --uds-name=/tmp/proxy-master
+         - --v=4
+root@VM-0-80-ubuntu:~/mcm/yurt# 
+
+```
+
+2. Copy kubeconfig and yurt-tunnel-client to tunnel server
+
+3. Run client to get all pods from managed cluster by tunnel
+
+```
+root@VM-0-80-ubuntu:~/mcm/yurt# kubectl exec -it `kubectl get po  -l k8s-app=yurt-tunnel-server -n kube-system -o jsonpath="{.items[0].metadata.name}"` -n kube-system sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+/ # ./yurt-tunnel-client  --proxy-uds=/tmp/proxy-master --proxy-host=""  --proxy-port=0 --mode=http-
+connect  --request-host=cls-t8gz6mgd  --request-port=6443 --kubeconfig=./kubeconfig
+I0302 08:52:56.592649     243 client.go:106] ClientCert set to "".
+I0302 08:52:56.592690     243 client.go:107] ClientKey set to "".
+I0302 08:52:56.592708     243 client.go:108] CACert set to "".
+I0302 08:52:56.592733     243 client.go:109] RequestProto set to "http".
+I0302 08:52:56.592743     243 client.go:110] RequestPath set to "success".
+I0302 08:52:56.592754     243 client.go:111] RequestHost set to "cls-gd97k5dx".
+I0302 08:52:56.592767     243 client.go:112] RequestPort set to 6443.
+I0302 08:52:56.592779     243 client.go:113] ProxyHost set to "".
+I0302 08:52:56.592790     243 client.go:114] ProxyPort set to 0.
+I0302 08:52:56.592807     243 client.go:115] ProxyUdsName set to "/tmp/proxy-master".
+I0302 08:52:56.592820     243 client.go:116] TestRequests set to '\x01'.
+I0302 08:52:56.592828     243 client.go:117] TestDelaySec set to 0.
+Pod 1: coredns-745589f8f6-ld9x2
+Pod 2: coredns-745589f8f6-tmzwn
+Pod 3: etcd-172.22.0.77
+Pod 4: flannel-b7t6n
+Pod 5: galaxy-daemonset-75wq4
+Pod 6: kube-apiserver-172.22.0.77
+Pod 7: kube-controller-manager-172.22.0.77
+Pod 8: kube-proxy-gfmhz
+Pod 9: kube-scheduler-172.22.0.77
+Pod 10: metrics-server-v0.3.6-794ccd69c8-nhmpd
+Pod 11: yurt-tunnel-agent-6bc94c58f7-gg458
+Pod 12: influxdb-0
+Pod 13: tke-auth-api-5ddc987db5-6k9vq
+Pod 14: tke-auth-api-5ddc987db5-z62s9
+Pod 15: tke-auth-controller-6ff7879977-l6vml
+Pod 16: tke-auth-controller-6ff7879977-rh9wq
+Pod 17: tke-business-api-8c5f97868-6m2s2
+Pod 18: tke-business-api-8c5f97868-xjh5j
+Pod 19: tke-business-controller-f7f566849-rf54k
+Pod 20: tke-business-controller-f7f566849-sj8n7
+Pod 21: tke-gateway-v87xk
+Pod 22: tke-logagent-api-78d6dbf74c-7xr52
+Pod 23: tke-logagent-api-78d6dbf74c-rjngh
+Pod 24: tke-logagent-controller-69cf4c6ff6-skftg
+Pod 25: tke-logagent-controller-69cf4c6ff6-wnq9v
+Pod 26: tke-monitor-api-97bb64745-945kv
+Pod 27: tke-monitor-api-97bb64745-c6q6h
+Pod 28: tke-monitor-controller-6d4ccb5d58-b4tcx
+Pod 29: tke-monitor-controller-6d4ccb5d58-tpbm7
+Pod 30: tke-notify-api-7757658446-c559n
+Pod 31: tke-notify-api-7757658446-qj2zb
+Pod 32: tke-notify-controller-846dc87846-8c792
+Pod 33: tke-notify-controller-846dc87846-f5fnk
+Pod 34: tke-platform-api-5c854779d-8j4x4
+Pod 35: tke-platform-api-5c854779d-j74b4
+Pod 36: tke-platform-controller-6d76dd7dc7-cbfmp
+Pod 37: tke-platform-controller-6d76dd7dc7-sgrph
+Pod 38: tke-registry-api-648bc48d9c-lcffc
+Pod 39: tke-registry-api-648bc48d9c-s5286
+Pod 40: tke-registry-controller-7bfb4799d8-tdhbk
+Pod 41: tke-registry-controller-7bfb4799d8-ttt2n
+/ # 
+```
 
 ## Hook
 

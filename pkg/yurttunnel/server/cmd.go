@@ -81,7 +81,8 @@ func NewYurttunnelServerCommand(stopCh <-chan struct{}) *cobra.Command {
 		"The number of proxy server instances, should be 1 unless it is an HA server.")
 	flags.StringVar(&o.proxyStrategy, "proxy-strategy", o.proxyStrategy,
 		"The strategy of proxying requests from tunnel server to agent.")
-
+	flags.StringVar(&o.udsName, "uds-name", o.udsName,
+		"uds-name should be empty for TCP traffic. For UDS set to its name.")
 	return cmd
 }
 
@@ -102,6 +103,7 @@ type YurttunnelServerOptions struct {
 	clientset             kubernetes.Interface
 	sharedInformerFactory informers.SharedInformerFactory
 	proxyStrategy         string
+	udsName               string
 }
 
 // NewYurttunnelServerOptions creates a new YurtNewYurttunnelServerOptions
@@ -205,7 +207,8 @@ func (o *YurttunnelServerOptions) run(stopCh <-chan struct{}) error {
 		o.serverAgentAddr,
 		o.serverCount,
 		tlsCfg,
-		o.proxyStrategy)
+		o.proxyStrategy,
+		o.udsName)
 	if err := ts.Run(); err != nil {
 		return err
 	}

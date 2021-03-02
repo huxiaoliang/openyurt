@@ -34,13 +34,15 @@ func NewTunnelServer(
 	serverAgentAddr string,
 	serverCount int,
 	tlsCfg *tls.Config,
-	proxyStrategy string) TunnelServer {
+	proxyStrategy string,
+	udsName string) TunnelServer {
 	ats := anpTunnelServer{
 		serverMasterAddr: serverMasterAddr,
 		serverAgentAddr:  serverAgentAddr,
 		serverCount:      serverCount,
 		tlsCfg:           tlsCfg,
 		proxyStrategy:    proxyStrategy,
+		udsName:          udsName,
 	}
 	return &ats
 }
