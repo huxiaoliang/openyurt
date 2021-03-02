@@ -134,7 +134,7 @@ func (o *YurttunnelAgentOptions) complete() error {
 
 	// hard code here for tkestack
 	klog.Infof("create the hook provider based")
-	o.hookProvider = tkestack.NewTKEStackHookProvider("tkestack", o.agentIdentifiers, o.clientset)
+	o.hookProvider = tkestack.NewTKEStackHookProvider("tkestack", o.clusterName, o.clientset)
 	return err
 }
 

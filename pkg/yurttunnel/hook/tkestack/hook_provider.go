@@ -26,7 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog/v2"
 )
 
 // AgentHook for execute
@@ -34,12 +33,6 @@ type AgentHook struct {
 	ProviderName string
 	ClusterName  string
 	Clientset    kubernetes.Interface
-}
-
-type ThingSpec struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value string `json:"value"`
 }
 
 // ClusterCredential records the credential information needed to access the cluster.
@@ -77,18 +70,16 @@ func (hook *AgentHook) PostStartTunnelAgent() error {
 	// steps:
 	// 1. get cluster credential by cluster name
 	// 2. patch token field to cluster credential
-	if true {
-		klog.Infof("excute PostStartTunnelAgent by tkestack provider")
-		return nil
-	}
 	ccl := ClusterCredentialList{}
 	restclient := hook.Clientset.Discovery().RESTClient()
 	data, err := restclient.
 		Get().
-		AbsPath("/apis/platform.tkestack.io/v1/clustercredentials?fieldSelector=clusterName=" + hook.ClusterName).
+		AbsPath("apis/platform.tkestack.io/v1/clustercredentials").
+		Param("fieldSelector", "clusterName="+hook.ClusterName).
+		SetHeader("Accept", "application/json").
 		DoRaw()
 	if err != nil {
-		return fmt.Errorf("Failed to get cluster %s credential for cluster:%s", hook.ClusterName, err)
+		return fmt.Errorf("Failed to get cluster %s credential: %v", hook.ClusterName, err)
 	}
 	err = json.Unmarshal(data, &ccl)
 	if err != nil {
@@ -101,16 +92,14 @@ func (hook *AgentHook) PostStartTunnelAgent() error {
 	if err != nil {
 		return fmt.Errorf("Failed to read token from %s: %s", constants.YurttunnelTokenFile, err)
 	}
-
-	things := make([]ThingSpec, 1)
-	things[0].Op = "replace"
-	things[0].Path = "/token"
-	things[0].Value = string(tokenByte)
-
-	_, err = restclient.Patch(types.MergePatchType).
-		AbsPath("/apis/platform.tkestack.io/v1/clustercredentials/" + ccl.Items[0].Name).
-		Body(things).
-		DoRaw()
+	patchBody := fmt.Sprintf(`[{"op":"replace","path":"/token","value":"%s"}]`, string(tokenByte))
+	err = restclient.Patch(types.JSONPatchType).
+		AbsPath("apis/platform.tkestack.io/v1").
+		Resource("clustercredentials").
+		Name(ccl.Items[0].Name).
+		Body([]byte(patchBody)).
+		Do().
+		Error()
 	if err != nil {
 		return fmt.Errorf("patch cluster credential for cluster %s faild: %s", hook.ClusterName, err)
 	}
